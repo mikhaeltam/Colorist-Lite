@@ -9,7 +9,7 @@
   over a colour wash with CRT scan lines. No text, no images, no external files.
   Tune: WIDTH / FAN at the top of the script, blur on .prism-leak, opacity on .prism-scan.
 
-  Hero use: a YouTube video sits centred in front of the effect.
+  Hero use: headline copy and a YouTube video sit in front of the effect; the bottom fades into rgb(7,4,18).
   Pick the video in the iframe URL:  cl-hero.html?v=YOUTUBE_ID
 -->
 <style>
@@ -54,11 +54,19 @@ body { background: var(--bg); overflow: hidden; touch-action: none; }
 }
 @keyframes p-roll { from { background-position: 0 130%; } to { background-position: 0 -130%; } }
 
-/* Video in front of the effect */
-.stage { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; z-index: 2; }
+/* Hero layout in front of the effect: copy on top, video below */
+.fade { position: fixed; left: 0; right: 0; bottom: 0; height: 22%; pointer-events: none; z-index: 1;
+        background: linear-gradient(to bottom, rgba(7,4,18,0), rgb(7,4,18)); }
+.stage { position: fixed; inset: 0; z-index: 2; box-sizing: border-box; padding: 44px 28px 36px;
+         display: flex; flex-direction: column; justify-content: center; pointer-events: none; }
+.copy { font-family: Inter, 'Helvetica Neue', Helvetica, Arial, sans-serif; }
+.eyebrow { margin: 0 0 14px; font-size: 10px; font-weight: 600; letter-spacing: .18em; text-transform: uppercase;
+           color: #14f0d2; line-height: 1; }
+.copy h1 { margin: 0; font-size: 36px; font-weight: 600; letter-spacing: -.03em; color: #f5f5f7; line-height: 1.1; }
+.copy p.lede { margin: 12px 0 0; max-width: 560px; font-size: 14px; font-weight: 400; letter-spacing: .01em;
+               color: #c9c6d6; line-height: 1.6; }
 .video {
-  width: min(86vw, calc((100vh - 72px) * 16 / 9));
-  aspect-ratio: 16 / 9;
+  margin-top: 28px; align-self: center; width: 100%; aspect-ratio: 16 / 9; pointer-events: auto;
   border-radius: 14px; overflow: hidden; background: #000;
   box-shadow: 0 0 0 1px rgba(255,255,255,.08), 0 24px 70px rgba(0,0,0,.6);
 }
@@ -78,7 +86,13 @@ body { background: var(--bg); overflow: hidden; touch-action: none; }
   <div class="prism-roll"></div>
 </div>
 
+<div class="fade"></div>
 <div class="stage">
+  <div class="copy" id="copy">
+    <p class="eyebrow">Free &#183; Blender add-on</p>
+    <h1>Colour grade in the viewport.</h1>
+    <p class="lede">Colorist Lite gives you the essential tools of Colorist Pro in a compact, free suite. Grade live in Blender&#8217;s viewport compositor and see the result as you work.</p>
+  </div>
   <div class="video" id="video"></div>
 </div>
 
@@ -94,6 +108,18 @@ body { background: var(--bg); overflow: hidden; touch-action: none; }
   f.allowFullscreen = true;
   f.referrerPolicy = 'strict-origin-when-cross-origin';
   document.getElementById('video').appendChild(f);
+})();
+// Size the video to the space left under the copy (full width when there's room)
+(() => {
+  const stage = document.querySelector('.stage'), copy = document.getElementById('copy'), v = document.getElementById('video');
+  function fit() {
+    const cs = getComputedStyle(stage);
+    const innerW = stage.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
+    const innerH = stage.clientHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom);
+    const availH = innerH - copy.offsetHeight - 28;
+    v.style.width = Math.max(160, Math.min(innerW, availH * 16 / 9)) + 'px';
+  }
+  addEventListener('resize', fit); fit();
 })();
 </script>
 <script>
