@@ -57,7 +57,7 @@ body { background: var(--bg); overflow: hidden; touch-action: none; }
 /* Hero layout in front of the effect: copy on top, video below */
 .fade { position: fixed; left: 0; right: 0; bottom: 0; height: 22%; pointer-events: none; z-index: 1;
         background: linear-gradient(to bottom, rgba(7,4,18,0), rgb(7,4,18)); }
-.stage { position: fixed; inset: 0; z-index: 2; box-sizing: border-box; padding: 44px 28px 36px;
+.stage { position: fixed; inset: 0; z-index: 2; box-sizing: border-box; padding: 88px 28px 104px;
          display: flex; flex-direction: column; justify-content: center; pointer-events: none; }
 .copy { font-family: Inter, 'Helvetica Neue', Helvetica, Arial, sans-serif; }
 .eyebrow { margin: 0 0 14px; font-size: 10px; font-weight: 600; letter-spacing: .18em; text-transform: uppercase;
@@ -66,7 +66,7 @@ body { background: var(--bg); overflow: hidden; touch-action: none; }
 .copy p.lede { margin: 12px 0 0; max-width: 560px; font-size: 14px; font-weight: 400; letter-spacing: .01em;
                color: #c9c6d6; line-height: 1.6; }
 .video {
-  margin-top: 28px; align-self: center; width: 100%; aspect-ratio: 16 / 9; pointer-events: auto;
+  margin-top: 48px; align-self: center; width: 100%; aspect-ratio: 16 / 9; pointer-events: auto;
   border-radius: 14px; overflow: hidden; background: #000;
   box-shadow: 0 0 0 1px rgba(255,255,255,.08), 0 24px 70px rgba(0,0,0,.6);
 }
@@ -116,7 +116,7 @@ body { background: var(--bg); overflow: hidden; touch-action: none; }
     const cs = getComputedStyle(stage);
     const innerW = stage.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
     const innerH = stage.clientHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom);
-    const availH = innerH - copy.offsetHeight - 28;
+    const availH = innerH - copy.offsetHeight - 48;
     v.style.width = Math.max(160, Math.min(innerW, availH * 16 / 9)) + 'px';
   }
   addEventListener('resize', fit); fit();
