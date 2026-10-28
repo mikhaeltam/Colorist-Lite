@@ -6,7 +6,7 @@
 <title>Colorist Lite hero</title>
 <!--
   Hero card background for Colorist Lite: a soft rainbow light leak that follows the cursor,
-  over a colour wash with CRT scan lines. No text, no images, no external files.
+  over a colour wash with CRT scan lines, under glass: glare, smudges and light-reactive scratches.
   Tune: WIDTH / FAN at the top of the script, blur on .prism-leak, opacity on .prism-scan.
 
   Hero use: headline copy and a YouTube video sit in front of the effect; the bottom fades into rgb(7,4,18).
@@ -72,6 +72,23 @@ body { background: var(--bg); overflow: hidden; touch-action: none; }
 }
 .video iframe { display: block; width: 100%; height: 100%; border: 0; }
 
+/* Glass (same treatment as the Nebulapunk cards): glare centred on the cursor, smudges it reveals,
+   and scratches that only catch the light when they run across the direction to the cursor.
+   These sit in the background stack, behind the copy and the video. */
+.prism-glare {
+  mix-blend-mode: screen;
+  opacity: calc(.55 + .45 * var(--p-on));
+  background:
+    radial-gradient(ellipse 30% 36% at var(--mx) var(--my), rgba(255,255,255,.13) 0%, rgba(255,255,255,.04) 45%, transparent 100%),
+    radial-gradient(ellipse 80% 18% at var(--mx) var(--my), rgba(220,235,255,.06) 0%, transparent 100%);
+}
+.prism-smudge, .prism-scratch { width: 100%; height: 100%; mix-blend-mode: screen; }
+.prism-smudge {
+  opacity: calc(.35 + .65 * var(--p-on));
+  -webkit-mask-image: radial-gradient(ellipse 46% 52% at var(--mx) var(--my), #000 0%, rgba(0,0,0,.35) 50%, transparent 100%);
+          mask-image: radial-gradient(ellipse 46% 52% at var(--mx) var(--my), #000 0%, rgba(0,0,0,.35) 50%, transparent 100%);
+}
+
 @media (prefers-reduced-motion: reduce) {
   .prism-spectrum, .prism-roll { animation: none; }
 }
@@ -84,6 +101,9 @@ body { background: var(--bg); overflow: hidden; touch-action: none; }
   <canvas class="prism-leak" id="leak"></canvas>
   <div class="prism-scan"></div>
   <div class="prism-roll"></div>
+  <div class="prism-glare"></div>
+  <canvas class="prism-smudge" id="smudge"></canvas>
+  <canvas class="prism-scratch" id="scratch"></canvas>
 </div>
 
 <div class="fade"></div>
@@ -195,6 +215,7 @@ body { background: var(--bg); overflow: hidden; touch-action: none; }
     root.style.setProperty('--mx', (cx * 100).toFixed(2) + '%');
     root.style.setProperty('--my', (cy * 100).toFixed(2) + '%');
     root.style.setProperty('--p-on', on.toFixed(3));
+    window.__glare = { x: cx, y: cy, on };   // shared with the glass scratches
 
     const band = Math.min(W, H) * WIDTH * (1 + Math.sin(s * .5) * .08);  // slow breathing
     const len = Math.hypot(W, H) * 1.3;
@@ -238,6 +259,141 @@ body { background: var(--bg); overflow: hidden; touch-action: none; }
     ctx.globalCompositeOperation = 'source-over';
     requestAnimationFrame(frame);
   }
+  requestAnimationFrame(frame);
+})();
+</script>
+<script>
+/* Glass wear: smudges (static) and scratches lit by the glare each frame. Fixed seed, so the glass
+   looks the same on every visit. */
+(() => {
+  const smCv = document.getElementById('smudge');
+  const scCv = document.getElementById('scratch'), scX = scCv.getContext('2d');
+  let CW = 1, CH = 1, dpr = 1, scratches = [], micro = new Float32Array(0);
+  const rng = s => () => (s = (s * 16807) % 2147483647) / 2147483647;
+  const noise1 = rnd => { const k = Array.from({ length: 12 }, rnd);
+    return u => { const x = u * 11, i = Math.floor(x), f = x - i, t = f * f * (3 - 2 * f);
+                  return k[i] * (1 - t) + k[Math.min(11, i + 1)] * t; }; };
+
+  function build() {
+    CW = Math.max(1, innerWidth); CH = Math.max(1, innerHeight);
+    dpr = Math.min(2, window.devicePixelRatio || 1);
+    const area = (CW * CH) / (1200 * 675);
+    const sc = Math.max(.85, Math.min(1.2, Math.min(CW, CH) / 600));
+
+    // ----- smudges -----
+    smCv.width = Math.round(CW * dpr); smCv.height = Math.round(CH * dpr);
+    const c = smCv.getContext('2d'), rnd = rng(17), W = smCv.width, H = smCv.height, k = dpr * sc;
+    c.clearRect(0, 0, W, H);
+    const blob = (x, y, rx, ry, rot, a) => {
+      c.save(); c.translate(x, y); c.rotate(rot); c.scale(1, ry / rx);
+      const g = c.createRadialGradient(0, 0, 0, 0, 0, rx);
+      g.addColorStop(0, `rgba(255,255,255,${a})`); g.addColorStop(.3, `rgba(255,255,255,${a * .75})`);
+      g.addColorStop(.6, `rgba(255,255,255,${a * .3})`); g.addColorStop(.85, `rgba(255,255,255,${a * .08})`);
+      g.addColorStop(1, 'rgba(255,255,255,0)');
+      c.fillStyle = g; c.beginPath(); c.arc(0, 0, rx, 0, Math.PI * 2); c.fill(); c.restore();
+    };
+    for (let i = 0; i < Math.max(8, Math.round(40 * area)); i++)
+      blob(rnd() * W, rnd() * H, (100 + rnd() * 260) * k, (70 + rnd() * 190) * k, rnd() * Math.PI, .025 + rnd() * .04);
+    for (let j = 0; j < Math.max(2, Math.round(7 * area) + 1); j++) {
+      let x = rnd() * W, y = rnd() * H, a = rnd() * Math.PI * 2; const turn = (rnd() - .5) * .05;
+      for (let i = 0; i < 22; i++) { blob(x, y, (45 + rnd() * 35) * k, (14 + rnd() * 10) * k, a, .03 + rnd() * .03);
+        x += Math.cos(a) * 20 * k; y += Math.sin(a) * 20 * k; a += turn; }
+    }
+    for (let i = 0; i < Math.max(2, Math.round(6 * area)); i++)
+      blob(rnd() * W, rnd() * H, (40 + rnd() * 20) * k, (55 + rnd() * 25) * k, rnd() * Math.PI, .06 + rnd() * .04);
+    for (let i = 0; i < Math.max(12, Math.round(60 * area)); i++) {
+      const d = (2.5 + rnd() * 3.5) * dpr; blob(rnd() * W, rnd() * H, d, d, 0, .14 + rnd() * .16); }
+
+    // ----- scratches (geometry; lit per frame) -----
+    scCv.width = Math.round(CW * dpr); scCv.height = Math.round(CH * dpr);
+    const R = rng(37); scratches = [];
+    const make = (x, y, ang, len, curve, depth, width) => {
+      const n = Math.max(3, Math.round(len / 6)), nz = noise1(R), pts = [];
+      let a = ang, px = x, py = y;
+      for (let i = 0; i <= n; i++) {
+        const u = i / n, taper = Math.pow(Math.sin(Math.PI * u), .6);
+        let d = depth * taper * (.35 + .65 * nz(u)); if (nz(1 - u) < .22) d *= .08;
+        pts.push(px, py, d); a += curve / n; px += Math.cos(a) * len / n; py += Math.sin(a) * len / n;
+      }
+      scratches.push({ pts, width, minX: Math.min(x, px) - 10, maxX: Math.max(x, px) + 10,
+                       minY: Math.min(y, py) - 10, maxY: Math.max(y, py) + 10 });
+    };
+    for (let j = 0; j < Math.max(3, Math.round(14 * area) + 1); j++) {
+      const ox = R() * CW, oy = R() * CH, base = R() * Math.PI, curve = (R() - .5) * .9;
+      const count = 20 + Math.round(R() * 34);
+      for (let i = 0; i < count; i++) {
+        const off = (R() - .5) * 90 * sc;
+        make(ox + Math.cos(base + Math.PI / 2) * off + (R() - .5) * 60 * sc,
+             oy + Math.sin(base + Math.PI / 2) * off + (R() - .5) * 60 * sc,
+             base + (R() - .5) * .12, (30 + R() * 190) * sc, curve + (R() - .5) * .15, .35 + R() * .5, .45 + R() * .3);
+      }
+    }
+    for (let i = 0; i < Math.max(2, Math.round(10 * area)); i++)
+      make(R() * CW, R() * CH, R() * Math.PI * 2, (160 + R() * 420) * sc, (R() - .5) * .6, .7 + R() * .3, .7 + R() * .5);
+    for (let i = 0; i < Math.max(150, Math.round(700 * area)); i++)
+      make(R() * CW, R() * CH, R() * Math.PI * 2, 4 + R() * 22, (R() - .5) * .4, .25 + R() * .45, .4 + R() * .25);
+    const M = rng(59), nMicro = Math.max(700, Math.round(3200 * area));
+    micro = new Float32Array(nMicro * 5);
+    const patches = Array.from({ length: 6 }, () => [M() * CW, M() * CH, (60 + M() * 120) * sc]);
+    for (let i = 0; i < nMicro; i++) {
+      let x, y;
+      if (M() < .4) { const [px, py, pr] = patches[Math.floor(M() * 6)]; const a = M() * Math.PI * 2, d = pr * Math.sqrt(M());
+                       x = px + Math.cos(a) * d; y = py + Math.sin(a) * d; }
+      else { x = M() * CW; y = M() * CH; }
+      const a = M() * Math.PI * 2, len = (1.5 + M() * 4.5) * Math.max(1, sc * 1.2);
+      micro.set([x, y, x + Math.cos(a) * len, y + Math.sin(a) * len, .45 + M() * .55], i * 5);
+    }
+  }
+
+  const LEVELS = 16;
+  const paths = Array.from({ length: LEVELS }, () => []), microPaths = Array.from({ length: LEVELS }, () => []);
+  function frame() {
+    const g = window.__glare || { x: .5, y: .5, on: 0 };
+    const lx = g.x * CW, ly = g.y * CH, on = g.on;
+    const reach = Math.min(CW, CH) * .5, gain = .28 + .72 * on;
+    scX.setTransform(dpr, 0, 0, dpr, 0, 0); scX.clearRect(0, 0, CW, CH);
+    for (const p of paths) p.length = 0; for (const p of microPaths) p.length = 0;
+    const r2 = reach * 1.6;
+    for (const s of scratches) {
+      if (s.maxX < lx - r2 || s.minX > lx + r2 || s.maxY < ly - r2 || s.minY > ly + r2) continue;
+      const P = s.pts;
+      for (let i = 0; i < P.length - 3; i += 3) {
+        const x0 = P[i], y0 = P[i + 1], x1 = P[i + 3], y1 = P[i + 4], depth = (P[i + 2] + P[i + 5]) * .5;
+        if (depth < .02) continue;
+        const dx = (x0 + x1) * .5 - lx, dy = (y0 + y1) * .5 - ly, dist = Math.hypot(dx, dy) || 1;
+        const fall = Math.exp(-(dist / reach) * (dist / reach)); if (fall < .02) continue;
+        const ux = x1 - x0, uy = y1 - y0, tl = Math.hypot(ux, uy) || 1;
+        const cos = (ux * dx + uy * dy) / (tl * dist), spec = Math.exp(-(cos * cos) / .06);
+        const b = Math.min(1, depth * fall * (.05 + .95 * spec) * gain * 1.0);
+        const lvl = Math.min(LEVELS - 1, Math.round(b * (LEVELS - 1))); if (lvl < 1) continue;
+        paths[lvl].push(x0, y0, x1, y1, s.width);
+      }
+    }
+    for (let i = 0; i < micro.length; i += 5) {
+      const x0 = micro[i], y0 = micro[i + 1], dx = x0 - lx, dy = y0 - ly;
+      if (dx > r2 || dx < -r2 || dy > r2 || dy < -r2) continue;
+      const dist = Math.hypot(dx, dy) || 1, fall = Math.exp(-(dist / reach) * (dist / reach)); if (fall < .03) continue;
+      const ux = micro[i + 2] - x0, uy = micro[i + 3] - y0, tl = Math.hypot(ux, uy) || 1;
+      const cos = (ux * dx + uy * dy) / (tl * dist), spec = Math.exp(-(cos * cos) / .015);
+      const b = Math.min(1, micro[i + 4] * fall * spec * gain * 1.6);
+      const lvl = Math.min(LEVELS - 1, Math.round(b * (LEVELS - 1))); if (lvl < 1) continue;
+      microPaths[lvl].push(x0, y0, micro[i + 2], micro[i + 3]);
+    }
+    scX.lineCap = 'round'; scX.lineWidth = .35;
+    for (let l = 1; l < LEVELS; l++) { const p = microPaths[l]; if (!p.length) continue;
+      scX.strokeStyle = `rgba(255,255,255,${(l / LEVELS).toFixed(3)})`; scX.beginPath();
+      for (let i = 0; i < p.length; i += 4) { scX.moveTo(p[i], p[i + 1]); scX.lineTo(p[i + 2], p[i + 3]); }
+      scX.stroke(); }
+    for (let l = 1; l < LEVELS; l++) { const p = paths[l]; if (!p.length) continue;
+      scX.strokeStyle = `rgba(236,242,255,${(l / LEVELS).toFixed(3)})`;
+      for (const wide of [false, true]) { scX.lineWidth = wide ? .95 : .55; scX.beginPath();
+        for (let i = 0; i < p.length; i += 5) { if ((p[i + 4] > .75) !== wide) continue;
+          scX.moveTo(p[i], p[i + 1]); scX.lineTo(p[i + 2], p[i + 3]); }
+        scX.stroke(); } }
+    requestAnimationFrame(frame);
+  }
+  let rt; addEventListener('resize', () => { clearTimeout(rt); rt = setTimeout(build, 150); });
+  build();
   requestAnimationFrame(frame);
 })();
 </script>
